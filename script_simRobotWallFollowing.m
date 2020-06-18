@@ -21,6 +21,8 @@
 % Revision history:
 % 2020_04_11 - first code write
 % 2020_06_18 - added comments and pushed it to GitHub
+% 2020_06_18 - added gains to show effects of inertia
+
 
 
 % The sensorx, sensory, and sensor_angle variables set the location of the
@@ -62,7 +64,7 @@ for i=1:length(t)
     % turn_command = 0.5;  % Positive commands turn to the left
     speed_command = 0.3; % This is the open-loop forward torque that sets speed
 
-    Kp = 0.001;  % The proportional gain
+    Kp = 0.005;  % The proportional gain
     Ki = 0.000;  % The integral gain
     Kd = 0.000;  % The derivative gain
     
