@@ -1,12 +1,5 @@
 function IR_distance = fcn_simRobot(torque_L,torque_R,sensorx,sensory,sensor_angle_in_degrees,varargin)
-% fcn_simRobot
-% This is a function written in support of simRobotWallFollowing that
-% contains kinematic simulations, drawing code, and sensor simulations.
 
-% Create a persistant structure called "robot" that is saved each time this
-% function is called. The first time the function is called, the default
-% values of the robot are filled in including the robot's size, the arena,
-% etc.
 
 persistent robot;
 
@@ -28,6 +21,7 @@ if isempty(robot)
     robot.sensor_range = 100;  % Sensor range: units are cm
     robot.omega_L = 0; % Initial value of robot's left motor speed
     robot.omega_R = 0; % Initial value of robot's right motor speed
+    robot.omega_Robot = 0; % Initially not moving
     robot.delta_t = 0.01; % Time step for 100 Hz sampling rate
     robot.plot_every = 1; % Plot every 1 time steps
     robot.current_plot_index = 1; % This is the current index of plotting
@@ -42,7 +36,7 @@ if nargin>5
     robot.plot_every = max(round(varargin{1}),1);
 end
 
-%% Constrain the torques to 100 percent limits
+%% Constraint the torque
 torque_L = min(torque_L,1);
 torque_L = max(torque_L,-1);
 torque_R = min(torque_R,1);
@@ -52,8 +46,8 @@ torque_R = max(torque_R,-1);
 %% Euler simulation of kinematics
 
 % Define sum of torques
-torque_coulomb_L = 0.01; % Assume small percent of torque is colomb
-torque_coulomb_R = 0.01; % Assume small percent of torque is colomb
+torque_coulomb_L = 0.01; % Assume 5 percent of torque is colomb
+torque_coulomb_R = 0.01; % Assume 5 percent of torque is colomb
 max_speed = 20; % Units are cm/second
 max_rotational_velocity = (max_speed / (robot.wheel_length/2)); % Max rotational speed of motor, in rad/sec
 
@@ -81,7 +75,10 @@ robot.v_R = robot.omega_R*robot.wheel_length/2;
 
 % Total velocity
 V = (robot.v_L + robot.v_R)/2;
-robot.omega_Robot = (robot.v_R - robot.v_L)/robot.width;
+
+% Add rotational inertia?
+factor = 0.1;  % Set to 0.01 if want eigs of 1 second for rotation
+robot.omega_Robot = factor*(robot.v_R - robot.v_L)/robot.width + (1-factor)*robot.omega_Robot;
 
 % Update the robot based on kinematics
 robot.l_wheelangle = robot.l_wheelangle + robot.omega_L*robot.delta_t; % Agular speed of left wheel (rad/sec)
@@ -90,22 +87,19 @@ robot.theta = robot.theta + robot.omega_Robot*robot.delta_t; % Angular speed of 
 robot.position_x = robot.position_x + V*cos(robot.theta)*robot.delta_t;
 robot.position_y = robot.position_y + V*sin(robot.theta)*robot.delta_t;
 
-% Plot result by calling the drawRobot function, which also passes out the
-% simulated IR distance
+% Plot result
 IR_distance = fcn_drawRobot(robot,1);  % Redraw the robot in Figure 1
-
-% Keep track of number of times this function has been called
 robot.current_plot_index = robot.current_plot_index + 1;
 
-% Is the distance bad? If yes, exit.
 if isnan(IR_distance)
     return;
 end
 
-% Is it time to redraw? If so, then redraw
 if mod(robot.current_plot_index,robot.plot_every)==0
     drawnow;
 end
+%pause(0.001);  % Not necessary - slows down sim
+
 
 end
 
@@ -559,14 +553,16 @@ if isempty(distance_array)
         distance_array(i,2) = mean(distance_array(i:i+10,2));
     end
 end
-IR_distance = interp1(distance_array(:,1),distance_array(:,2),distance) + 3*randn(length(distance(:,1)),1);
+%IR_distance = interp1(distance_array(:,1),distance_array(:,2),distance) + 3*randn(length(distance(:,1)),1);
+IR_index = max(min(round(distance*10),1000),1);
+IR_distance =  distance_array(IR_index,2) + 3*randn(length(distance(:,1)),1);                                           
 
 
 end
 
 
 
-function [distance,location] = fcn_findSensorHit(wall_start,wall_end,sensor_vector,varargin)   
+function [distance,location] = fcn_findSensorHit(P,wall_end,sensor_vector,varargin)   
 % fcn_findSensorHit calculates hits between sensor vector and walls
 % Syntax:
 % fcn_findSensorHit(arena.wall_start,arena.wall_end,sensor_vector,varargin) 
@@ -591,9 +587,9 @@ if do_debug
     axis equal;
     grid on; grid minor;
     
-    N_walls = length(wall_start(:,1));
-    walls_x = [wall_start(:,1) wall_end(:,1) NaN*wall_start(:,1)];
-    walls_y = [wall_start(:,2) wall_end(:,2) NaN*wall_start(:,2)];
+    N_walls = length(P(:,1));
+    walls_x = [P(:,1) wall_end(:,1) NaN*P(:,1)];
+    walls_y = [P(:,2) wall_end(:,2) NaN*P(:,2)];
     walls_x = reshape(walls_x',N_walls*3,1);
     walls_y = reshape(walls_y',N_walls*3,1);
         
@@ -620,13 +616,14 @@ end
 
 
 %% Calculations begin here
-% Define r and s vectors
-p = wall_start;
+% Define p, q, r and s vectors
 q = sensor_vector(1,:);
-r = wall_end - wall_start;
+r = wall_end - P;
 s = sensor_vector(2,:)-sensor_vector(1,:);
+
+
 r_cross_s = crossProduct(r,s);
-q_minus_p =  q - p;
+q_minus_p =  q - P;
 
 q_minus_p_cross_s = crossProduct(q_minus_p,s);
 q_minus_p_cross_r = crossProduct(q_minus_p,r);
@@ -642,12 +639,12 @@ u = q_minus_p_cross_r./r_cross_s;
 t(parallel_indices) = inf;
 u(parallel_indices) = inf;
 
-intersection = NaN*ones(length(p(:,1)),2);
+intersection = NaN*ones(length(P(:,1)),2);
 
 good_vector = ((0<t).*(1>t).*(0<u).*(1>u));
 good_indices = find(good_vector>0);
 if ~isempty(good_indices)
-    result = p + t.*r; 
+    result = P + t.*r; 
     intersection(good_indices,:) = result(good_indices,:);
     %plot(intersection(:,1),intersection(:,2),'rx');
 end
@@ -657,7 +654,52 @@ distances_squared = sum((intersection - sensor_vector(1,:)).^2,2);
 
 distance = best^0.5;
 location = intersection(best_index,:);
+
+% FOR BACKUP
+% %% Calculations begin here
+% % Define p, q, r and s vectors
+% p = wall_start;
+% q = sensor_vector(1,:);
+% r = wall_end - wall_start;
+% s = sensor_vector(2,:)-sensor_vector(1,:);
+% 
+% 
+% r_cross_s = crossProduct(r,s);
+% q_minus_p =  q - p;
+% 
+% q_minus_p_cross_s = crossProduct(q_minus_p,s);
+% q_minus_p_cross_r = crossProduct(q_minus_p,r);
+% 
+% parallel_indices = find(0==r_cross_s);
+% if any(parallel_indices)
+%     r_cross_s(parallel_indices) = 1; % They are colinear or parallel, so make dummy length
+% end
+%    
+% t = q_minus_p_cross_s./r_cross_s;
+% u = q_minus_p_cross_r./r_cross_s;
+% 
+% t(parallel_indices) = inf;
+% u(parallel_indices) = inf;
+% 
+% intersection = NaN*ones(length(p(:,1)),2);
+% 
+% good_vector = ((0<t).*(1>t).*(0<u).*(1>u));
+% good_indices = find(good_vector>0);
+% if ~isempty(good_indices)
+%     result = p + t.*r; 
+%     intersection(good_indices,:) = result(good_indices,:);
+%     %plot(intersection(:,1),intersection(:,2),'rx');
+% end
+% 
+% distances_squared = sum((intersection - sensor_vector(1,:)).^2,2);
+% [best,best_index] = min(distances_squared);
+% 
+% distance = best^0.5;
+% location = intersection(best_index,:);
+
 end
+
+
 
 
 
