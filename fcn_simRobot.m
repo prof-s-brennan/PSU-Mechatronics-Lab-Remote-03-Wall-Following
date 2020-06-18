@@ -52,8 +52,8 @@ torque_R = max(torque_R,-1);
 %% Euler simulation of kinematics
 
 % Define sum of torques
-torque_coulomb_L = 0.01; % Assume 5 percent of torque is colomb
-torque_coulomb_R = 0.01; % Assume 5 percent of torque is colomb
+torque_coulomb_L = 0.01; % Assume small percent of torque is colomb
+torque_coulomb_R = 0.01; % Assume small percent of torque is colomb
 max_speed = 20; % Units are cm/second
 max_rotational_velocity = (max_speed / (robot.wheel_length/2)); % Max rotational speed of motor, in rad/sec
 
