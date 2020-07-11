@@ -1,7 +1,7 @@
 # PSU-Mechatronics-Lab-Remote-03-Wall-Following
 This is repository for the lab files to implement simulated robot wall following in MATLAB. It demonsrates a simple robot kinematic simulation, drawing utility, and compartimentalization of code.
 See the GitHub wiki page for more details, at: 
-https://github.com/prof-s-brennan/PSU-Mechatronics-Lab-Remote-03-Wall-Following/wiki/Remote-Lab-Material-to-Simulate-a-Wall-Following-Robot
+https://github.com/prof-s-brennan/PSU-Mechatronics-Lab-Remote-03-Wall-Following/wiki
 
 Installation: Copy the files into a working directory of MATLAB. The main code is within script_simRobotWallFollowing.m.
 
